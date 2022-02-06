@@ -1,3 +1,3 @@
 const parse = require("./parse");
 
-console.log(parse('{"a": 3}'))
+console.log(parse("True"))

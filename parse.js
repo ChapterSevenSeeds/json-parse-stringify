@@ -19,7 +19,7 @@ function parseHelper(input, helpers) {
     let type = ObjectTypes.Unknown;
     let object;
     let temp;
-    for (; helpers.start < input.length; ++helpers.start) {
+    for (; helpers.start <= input.length; ++helpers.start) {
         switch (type) {
             case ObjectTypes.Unknown:
                 switch (input[helpers.start]) {
@@ -87,7 +87,9 @@ function parseHelper(input, helpers) {
                     case '9':
                     case '.':
                         object += input[helpers.start].toString();
+                        continue;
                     default:
+                        --helpers.start;
                         return Number(object);
                 }
             case ObjectTypes.Null:
@@ -97,6 +99,7 @@ function parseHelper(input, helpers) {
                         object += input[helpers.start];
                         continue;
                     default:
+                        --helpers.start;
                         if (object === 'null') return null;
                         else throw new Error(`Unrecognized keyword ${object}.`);
                 }
@@ -111,6 +114,7 @@ function parseHelper(input, helpers) {
                         object += input[helpers.start];
                         continue;
                     default:
+                        --helpers.start;
                         switch (object) {
                             case 'true': return true;
                             case 'false': return false;
@@ -148,7 +152,6 @@ function parseHelper(input, helpers) {
             case ObjectTypes.Array:
                 switch (input[helpers.start]) {
                     case ',':
-                        ++helpers.start;
                         continue;
                     case ']':
                         return object;
