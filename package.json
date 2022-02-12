@@ -1,0 +1,12 @@
+{
+    "devDependencies": {
+        "cli-progress": "^3.10.0",
+        "colors": "^1.4.0",
+        "jest": "^27.5.1",
+        "table": "^6.8.0"
+    },
+    "scripts": {
+        "test": "jest --coverage",
+        "benchmark": "node benchmark.js"
+    }
+}
