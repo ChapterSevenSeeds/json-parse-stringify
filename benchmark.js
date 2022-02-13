@@ -1,4 +1,5 @@
-const parse = require("./parse");
+const recursiveParse = require("./parse");
+const iterativeParse = require("./parse2");
 const stringify = require("./stringify");
 const { table } = require('table');
 require('colors');
@@ -24,14 +25,25 @@ const data = {
     nestedObject: { "d": { "a": "asdf", "b": { "3": false } } },
 };
 
-const parsers = [
+const parsers1 = [
     {
         name: "JSON.parse",
         function: JSON.parse
     },
     {
-        name: "Tyson's parse",
-        function: parse
+        name: "Tyson's recursive parse",
+        function: recursiveParse
+    }
+];
+
+const parsers2 = [
+    {
+        name: "JSON.parse",
+        function: JSON.parse
+    },
+    {
+        name: "Tyson's iterative parse",
+        function: iterativeParse
     }
 ];
 
@@ -47,18 +59,18 @@ const stringifiers = [
 ];
 
 let start, stop;
-const COUNT = 2000000;
+const COUNT = 500000;
 
 // create a new progress bar instance and use shades_classic theme
 const progress = new cliProgress.SingleBar({ fps: 2 }, cliProgress.Presets.shades_classic);
 
 // start the progress bar with a total value of 200 and start value of 0
-progress.start(2 * 2 * Object.keys(data).length, 0);
+progress.start(3 * 2 * Object.keys(data).length, 0);
 
-const parseResults = [["Test", parsers[0].name, parsers[1].name, "Speed Gain"]];
+const recursiveParseResults = [["Test", parsers1[0].name, parsers1[1].name, "Speed Gain"]];
 for (const key of Object.keys(data)) {
     const result = [key];
-    for (const parser of parsers) {
+    for (const parser of parsers1) {
         start = performance.now();
         for (let i = 0; i < COUNT; ++i) {
             parser.function(JSON.stringify(data[key]));
@@ -68,7 +80,23 @@ for (const key of Object.keys(data)) {
         result.push(stop - start);
     }
 
-    parseResults.push([...result, generateGainCell(result[1], result[2])]);
+    recursiveParseResults.push([...result, generateGainCell(result[1], result[2])]);
+}
+
+const iterativeParseResults = [["Test", parsers2[0].name, parsers2[1].name, "Speed Gain"]];
+for (const key of Object.keys(data)) {
+    const result = [key];
+    for (const parser of parsers2) {
+        start = performance.now();
+        for (let i = 0; i < COUNT; ++i) {
+            parser.function(JSON.stringify(data[key]));
+        }
+        stop = performance.now();
+        progress.increment();
+        result.push(stop - start);
+    }
+
+    iterativeParseResults.push([...result, generateGainCell(result[1], result[2])]);
 }
 
 const stringifyResults = [["Test", stringifiers[0].name, stringifiers[1].name, "Speed Gain"]];
@@ -89,12 +117,20 @@ for (const key of Object.keys(data)) {
 
 progress.stop();
 
-console.log(table(parseResults, {
+console.log(table(recursiveParseResults, {
     header: {
         alignment: 'center',
-        content: 'Parse Results'
+        content: 'Recursive Parse Results'
     }
 }));
+
+console.log(table(iterativeParseResults, {
+    header: {
+        alignment: 'center',
+        content: 'Iterative Parse Results'
+    }
+}));
+
 console.log(table(stringifyResults, {
     header: {
         alignment: 'center',

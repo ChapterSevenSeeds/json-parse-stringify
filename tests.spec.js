@@ -1,47 +1,90 @@
 const { expect, test, describe } = require('@jest/globals');
 const _ = require('lodash');
-const parse = require('./parse');
+const recursiveParse = require('./parse');
+const iterativeParse = require('./parse2');
 const stringify = require('./stringify');
 
-describe("Parser tests", () => {
+describe("Recursive parser tests", () => {
     test("invalid", () => {
-        expect(() => parse("asdf")).toThrow();
-        expect(() => parse("falser")).toThrow();
-        expect(() => parse("nulll")).toThrow();
+        expect(() => recursiveParse("asdf")).toThrow();
+        expect(() => recursiveParse("falser")).toThrow();
+        expect(() => recursiveParse("nulll")).toThrow();
     });
     test("string", () => {
         const item = "hello";
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
     });
     test("integer", () => {
         const item = 151888;
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
     });
     test("float", () => {
         const item = 151.888;
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
     });
     test("booleans", () => {
         let item = false;
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
         item = true;
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
     });
     test("array", () => {
         const item = [3, 2, 5, null, false, 1, 235235];
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
     });
     test("object", () => {
         const item = { "d": 3, "a": "asdf", "q": false };
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
     });
     test("nested array", () => {
         const item = [3, [3, 2, 5, [1, [1, [5]]]], 5, ["asdf", false, null]];
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
     });
     test("nested object", () => {
         const item = { "d": { "a": "asdf", "b": { "3": false } } };
-        expect(parse(JSON.stringify(item))).toStrictEqual(item);
+        expect(recursiveParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+});
+
+describe("Iterative parser tests", () => {
+    test("invalid", () => {
+        expect(() => iterativeParse("asdf")).toThrow();
+        expect(() => iterativeParse("falser")).toThrow();
+        expect(() => iterativeParse("nulll")).toThrow();
+    });
+    test("string", () => {
+        const item = "hello";
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+    test("integer", () => {
+        const item = 151888;
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+    test("float", () => {
+        const item = 151.888;
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+    test("booleans", () => {
+        let item = false;
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+        item = true;
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+    test("array", () => {
+        const item = [3, 2, 5, null, false, 1, 235235];
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+    test("object", () => {
+        const item = { "d": 3, "a": "asdf", "q": false };
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+    test("nested array", () => {
+        const item = [3, [3, 2, 5, [1, [1, [5]]]], 5, ["asdf", false, null]];
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
+    });
+    test("nested object", () => {
+        const item = { "d": { "a": "asdf", "b": { "3": false } } };
+        expect(iterativeParse(JSON.stringify(item))).toStrictEqual(item);
     });
 });
 

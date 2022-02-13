@@ -57,13 +57,8 @@ function parseHelper(input, helpers) {
                         object = input[helpers.start];
                         type = ObjectTypes.Boolean;
                         continue;
-                    case ' ':
-                    case '\t':
-                    case '\n':
-                    case '\r':
-                        continue;
                     default:
-                        throw new Error(`Unrecognized token ${input[helpers.start]}.`);
+                        continue;
                 }
             case ObjectTypes.String:
                 switch (input[helpers.start]) {
@@ -123,10 +118,7 @@ function parseHelper(input, helpers) {
                 }
             case ObjectTypes.Object:
                 switch (input[helpers.start]) {
-                    case ' ':
-                    case '\t':
-                    case '\n':
-                    case '\r':
+                    default:
                         continue;
                     case '"':
                         type = ObjectTypes.ObjectKey;
@@ -151,10 +143,10 @@ function parseHelper(input, helpers) {
                 }
             case ObjectTypes.Array:
                 switch (input[helpers.start]) {
-                    case ',':
-                        continue;
                     case ']':
                         return object;
+                    case ',':
+                        ++helpers.start;
                     default:
                         object.push(parseHelper(input, helpers));
                 }
