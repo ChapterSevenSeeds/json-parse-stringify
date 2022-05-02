@@ -2,11 +2,21 @@ class Range {
     Start;
     End;
     Exclusions = [];
+    StartCode;
+    EndCode;
 
     constructor(start, end, exclusions) {
         this.Start = start;
+        this.StartCode = start.charCodeAt(0);
         this.End = end;
+        this.EndCode = end.charCodeAt(0);
         this.Exclusions = exclusions;
+    }
+
+    isInRange(char) {
+        const code = char.charCodeAt(0);
+
+        return code >= this.StartCode && code <= this.EndCode && this.Exclusions.every(exclusion !== char);
     }
 }
 
@@ -24,81 +34,129 @@ function singletonChar(hexOrChar) {
     if (hexOrChar.length > 1) {
         return String.fromCodePoint(parseInt(hexOrChar, 16));
     }
-    
+
     return hexOrChar;
 }
 
-const grammar = require('fs').readFileSync("JSON grammar.txt").toString();
+const grammar = require('fs').readFileSync("test grammar.txt").toString();
 
 const ruleGroups = {};
+
 for (const group of grammar.matchAll(/(\w+)(?:(?:\r\n)|\n)((?:[ \t]+.*?(?:(?:\r\n)|\n|$))+)/g)) {
     const rule = new Rule(false, group[1].trim());
-
-    for (const replacement of group[2].split(/(\r\n)|\n/).map(x => x.trim()).filter(x => x)) {
+    for (const line of group[2].split(/(\r\n)|\n/).map(x => x.trim()).filter(x => x)) {
         rule.Replacements.push([]);
-        let identifier;
-        const items = replacement.split(' ');
+        for (let i = 0; i < line.length; ++i) {
+            switch (line[i]) {
+                case "'": {
+                    let singleton = "";
+                    while (line[++i] !== "'") singleton += line[i];
+                    const toString = singletonChar(singleton);
+                    if (!(toString in ruleGroups)) {
+                        ruleGroups[toString] = new Rule(true, toString);
+                    }
+                    rule.Replacements[rule.Replacements.length - 1].push(ruleGroups[toString]);
+                    break;
+                }
+                case '\t':
+                case ' ':
+                    break;
+                case '"': {
+                    let string = "";
+                    while (line[++i] !== '"') string += line[i];
+                    if (!(string in ruleGroups)) {
+                        ruleGroups[string] = new Rule(true, string);
+                    }
+                    rule.Replacements[rule.Replacements.length - 1].push(ruleGroups[string]);
+                    break;
+                }
+                case '.': {
+                    const startRange = rule.Replacements[rule.Replacements.length - 1][rule.Replacements[rule.Replacements.length - 1].length - 1].Identifier;
+                    delete ruleGroups[startRange];
+                    let endRange = "";
+                    while (line[++i] !== "'"); // Consume until singleton start.
+                    while (line[++i] !== "'") endRange += line[i]; // Grab the ending of the range.
+                    endRange = singletonChar(endRange);
+                    while (line[++i] === " "); // Consume whitespace.
+                    
+                    const exclusions = [];
+                    while (line[i] === '-') {
+                        let exclusionChar = "";
+                        while (line[++i] !== "'"); // Consume until singleton start.
+                        while (line[++i] !== "'") exclusionChar += line[i]; // Grab the ending of the range.
+                        exclusionChar = singletonChar(exclusionChar);
+                        while (line[++i] === " "); // Consume whitespace.
+                        exclusions.push(exclusionChar);
+                    }
 
-        // First, loop through and fix any split items that had spaces in them.
-        for (let i = 0; i < items.length; ++i) {
-            if ([...items[i].matchAll(/(?<!\\)['"]/g)].length === 1) {
-                items[i] += ' ' + items[i + 1];
-                items.splice(i + 1, 1);
+                    const range = new Range(startRange, endRange, exclusions);
+                    rule.Replacements[rule.Replacements.length - 1].push(range);
+                    break;
+                }
+                default: {
+                    let variable = "";
+                    while (line[i] !== " " && i < line.length) variable += line[i++];
+
+                    if (variable in ruleGroups) {
+                        rule.Replacements[rule.Replacements.length - 1].push(ruleGroups[variable]);
+                    } else {
+                        rule.Replacements[rule.Replacements.length - 1].push(variable);
+                    }
+                }
             }
         }
-
-        // Second, fix any ranges. 
-        for (let i = 0; i < items.length; ++i) {
-            if (items[i] === '.') {
-                const rangeStart = i - 1;
-                items[rangeStart] += '.' + items[rangeStart + 2];
-                while (items[i += 2] === '-') {
-                    items[rangeStart] += '-' + items[i + 1];
-                }
-
-                items.splice(rangeStart + 1, i - rangeStart);
-                i = rangeStart;
-            }
-        }
-
-        for (const item of items) {
-            if (identifier = /^"(.*?)"$/i.exec(item)) {
-                // Terminal string
-                if (!(identifier[1] in ruleGroups)) {
-                    ruleGroups[identifier[1]] = new Rule(true, identifier[1]);
-                }
-                rule.Replacements[rule.Replacements.length - 1].push(ruleGroups[identifier[1]]);
-            } else if (identifier = /^'([0-9A-F]{4,5}|10[0-9A-F]{4}|.)'$/i.exec(item)) {
-                // Singleton
-                const toString = singletonChar(identifier[1]);
-                if (!(toString in ruleGroups)) {
-                    ruleGroups[toString] = new Rule(true, toString);
-                }
-                rule.Replacements[rule.Replacements.length - 1].push(ruleGroups[toString]);
-            } else if (identifier = /^'([0-9A-F]{4,5}|10[0-9A-F]{4}|.)'\.'([0-9A-F]{4,5}|10[0-9A-F]{4}|.)'((?:-'(?:[0-9A-F]{4,5}|10[0-9A-F]{4}|.)')*)$/i.exec(item)) {
-                // Range
-                const range = new Range(singletonChar(identifier[1]), singletonChar(identifier[2]), [...identifier[3].matchAll(/^'([0-9A-F]{4,5}|10[0-9A-F]{4}|.)'$/i)].map(singletonChar));
-                rule.Replacements[rule.Replacements.length - 1].push(range);
-            } else {
-                // Non-terminal
-                if (item in ruleGroups) {
-                    rule.Replacements[rule.Replacements.length - 1].push(ruleGroups[item]);
-                } else {
-                    rule.Replacements[rule.Replacements.length - 1].push(item);
-                }
-            }
-        }
-
     }
 
     ruleGroups[rule.Identifier] = rule;
 }
 
 for (const key in ruleGroups) {
-    for (let i = 0; i < ruleGroups[key].Replacements; ++i) {
-        if (typeof(ruleGroups[key].Replacements[i]) === 'string') {
-            ruleGroups[key].Replacements[i] = ruleGroups[ruleGroups[key].Replacements[i]];
+    for (let i = 0; i < ruleGroups[key].Replacements.length; ++i) {
+        for (let j = 0; j < ruleGroups[key].Replacements[i].length; ++j) {
+            if (typeof (ruleGroups[key].Replacements[i][j]) === 'string') {
+                ruleGroups[key].Replacements[i][j] = ruleGroups[ruleGroups[key].Replacements[i][j]];
+            }
         }
     }
 }
-console.log(ruleGroups);
+
+const firstSets = Object.values(ruleGroups).filter(x => !x.Terminal).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: new Set() }), {});
+
+function first(variable) {
+    const result = new Set();
+
+    if (ruleGroups[variable].Terminal) {
+        return new Set([ruleGroups[variable].Identifier]);
+    }
+
+    for (const replacement of ruleGroups[variable].Replacements) {
+        for (const symbol of replacement) {
+            const firstForSymbol = first(symbol.Identifier);
+            if (firstForSymbol.has("")) {
+                
+            }
+        }
+    }
+    if (ruleGroups[variable].Terminal) {
+        return new Set([ruleGroups[variable].Identifier]);
+    }
+
+    if (ruleGroups[variable].Replacements.some(symbols => symbols.every(symbol => symbol === ""))) {
+        return new Set([""]);
+    }
+
+
+}
+for (const [variable, set] in Object.entries(firstSets)) {
+    for (const rule of ruleGroups[variable]) {
+        for (const symbol of rule) {
+            if (symbol.Terminal) {
+                set.add(symbol.Identifier);
+                break;
+            } else {
+
+            }
+        }
+    }
+}
+console.log(firstSets);
