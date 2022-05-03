@@ -18,6 +18,10 @@ class Range {
 
         return code >= this.StartCode && code <= this.EndCode && this.Exclusions.every(exclusion !== char);
     }
+
+    toString() {
+        return `${this.Start}${this.End}${this.Exclusions.join("")}`;
+    }
 }
 
 class Rule {
@@ -38,11 +42,11 @@ function singletonChar(hexOrChar) {
     return hexOrChar;
 }
 
-const grammar = require('fs').readFileSync("test grammar.txt").toString();
+const grammar = require('fs').readFileSync("JSON grammar.txt").toString();
 
 const ruleGroups = {};
 
-for (const group of grammar.matchAll(/(\w+)(?:(?:\r\n)|\n)((?:[ \t]+.*?(?:(?:\r\n)|\n|$))+)/g)) {
+for (const group of grammar.matchAll(/(.+?)(?:(?:\r\n)|\n)((?:[ \t]+.*?(?:(?:\r\n)|\n|$))+)/g)) {
     const rule = new Rule(false, group[1].trim());
     for (const line of group[2].split(/(\r\n)|\n/).map(x => x.trim()).filter(x => x)) {
         rule.Replacements.push([]);
@@ -71,7 +75,8 @@ for (const group of grammar.matchAll(/(\w+)(?:(?:\r\n)|\n)((?:[ \t]+.*?(?:(?:\r\
                     break;
                 }
                 case '.': {
-                    const startRange = rule.Replacements[rule.Replacements.length - 1][rule.Replacements[rule.Replacements.length - 1].length - 1].Identifier;
+
+                    const startRange = rule.Replacements[rule.Replacements.length - 1].splice(rule.Replacements[rule.Replacements.length - 1].length - 1, 1)[0].Identifier;
                     delete ruleGroups[startRange];
                     let endRange = "";
                     while (line[++i] !== "'"); // Consume until singleton start.
@@ -90,7 +95,13 @@ for (const group of grammar.matchAll(/(\w+)(?:(?:\r\n)|\n)((?:[ \t]+.*?(?:(?:\r\
                     }
 
                     const range = new Range(startRange, endRange, exclusions);
-                    rule.Replacements[rule.Replacements.length - 1].push(range);
+
+                    const rangeString = range.toString();
+                    if (!(rangeString in ruleGroups)) {
+                        ruleGroups[rangeString] = new Rule(true, range);
+                    }
+                    rule.Replacements[rule.Replacements.length - 1].push(ruleGroups[rangeString]);
+
                     break;
                 }
                 default: {
@@ -120,7 +131,11 @@ for (const key in ruleGroups) {
     }
 }
 
-const firstSets = Object.values(ruleGroups).filter(x => !x.Terminal).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: new Set() }), {});
+
+
+Set.prototype.extend = function (enumerable) {
+    for (const item of enumerable) this.add(item);
+}
 
 function first(variable) {
     const result = new Set();
@@ -130,33 +145,27 @@ function first(variable) {
     }
 
     for (const replacement of ruleGroups[variable].Replacements) {
+        const cumulative = new Set();
+        let exhausted = true;
         for (const symbol of replacement) {
-            const firstForSymbol = first(symbol.Identifier);
+            const firstForSymbol = first(symbol.Identifier.toString());
             if (firstForSymbol.has("")) {
-                
-            }
-        }
-    }
-    if (ruleGroups[variable].Terminal) {
-        return new Set([ruleGroups[variable].Identifier]);
-    }
-
-    if (ruleGroups[variable].Replacements.some(symbols => symbols.every(symbol => symbol === ""))) {
-        return new Set([""]);
-    }
-
-
-}
-for (const [variable, set] in Object.entries(firstSets)) {
-    for (const rule of ruleGroups[variable]) {
-        for (const symbol of rule) {
-            if (symbol.Terminal) {
-                set.add(symbol.Identifier);
-                break;
+                firstForSymbol.delete("");
+                cumulative.extend(firstForSymbol);
             } else {
-
+                cumulative.extend(firstForSymbol);
+                exhausted = false;
+                break;
             }
         }
+
+        if (exhausted) cumulative.add("");
+
+        result.extend(cumulative);
     }
+
+    return result;
 }
+
+const firstSets = Object.values(ruleGroups).filter(x => !x.Terminal).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: first(cur.Identifier) }), {});
 console.log(firstSets);
