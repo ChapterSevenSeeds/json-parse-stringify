@@ -45,6 +45,8 @@ function deepIsEqual(obj1, obj2) {
         case "string":
         case "boolean":
             return obj1 === obj2;
+        case "symbol":
+            return obj1.toString() === obj2.toString();
         case "object":
             if (obj1 instanceof Set !== obj2 instanceof Set) return false;
             if ((obj1 == null) !== (obj2 == null)) return false;
@@ -78,7 +80,7 @@ function singletonChar(hexOrChar) {
     return hexOrChar;
 }
 
-const grammar = require('fs').readFileSync("test grammar 3.txt").toString();
+const grammar = require('fs').readFileSync("JSON grammar.txt").toString();
 
 const ruleGroups = {};
 let startVariable;
@@ -115,7 +117,6 @@ for (const group of grammar.matchAll(/(.+?)(?:(?:\r\n)|\n)((?:[ \t]+.*?(?:(?:\r\
                     break;
                 }
                 case '.': {
-
                     const startRange = rule.Replacements[rule.Replacements.length - 1].splice(rule.Replacements[rule.Replacements.length - 1].length - 1, 1)[0].Identifier;
                     delete ruleGroups[startRange];
                     let endRange = "";
@@ -208,7 +209,7 @@ function first(variable) {
 }
 
 function follow(followSets, startVariable) {
-    followSets[startVariable].add("$");
+    followSets[startVariable].add(Symbol("EOF"));
 
     let copy = {};
 
@@ -217,14 +218,22 @@ function follow(followSets, startVariable) {
 
         for (const variable in followSets) {
             for (const replacement of ruleGroups[variable].Replacements) {
-                if (replacement.length === 3 && !firstSets[replacement[2].Identifier].has("")) {
-                    const firstBeta = new Set(firstSets[replacement[2].Identifier]);
+                if (replacement.length >= 2) {
+                    for (let i = 1; i < replacement.length; ++i) {
+                        if (!ruleGroups[replacement[i - 1].Identifier].Terminal) {
+                            const firstBeta = new Set(firstSets[replacement[i].Identifier]);
+                            if (firstBeta.has("")) {
+                                followSets[replacement[i - 1].Identifier].extend(followSets[variable]);
+                                firstBeta.delete("");
+                            }
+                            
+                            followSets[replacement[i - 1].Identifier].extend(firstBeta);
+                        }
+                    }
 
-                    followSets[replacement[1].Identifier].extend(firstBeta);
-                } else if (replacement.length === 3 && firstSets[replacement[2].Identifier].has("")) {
-                    followSets[replacement[1].Identifier].extend(followSets[variable]);
-                } else if (replacement.length === 2) {
-                    followSets[replacement[1].Identifier].extend(followSets[variable]);
+                    if (!ruleGroups[replacement[replacement.length - 1].Identifier].Terminal) {
+                        followSets[replacement[replacement.length - 1].Identifier].extend(followSets[variable]);
+                    }
                 }
             }
         }
