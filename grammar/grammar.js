@@ -1,86 +1,9 @@
-class Range {
-    Start;
-    End;
-    Exclusions = [];
-    StartCode;
-    EndCode;
+const Rule = require('./rule');
+const Range = require('./range');
+const { singletonChar, deepAreEqual } = require('./tools');
+require('./set-extensions');
 
-    constructor(start, end, exclusions) {
-        this.Start = start;
-        this.StartCode = start.charCodeAt(0);
-        this.End = end;
-        this.EndCode = end.charCodeAt(0);
-        this.Exclusions = exclusions;
-    }
-
-    isInRange(char) {
-        const code = char.charCodeAt(0);
-
-        return code >= this.StartCode && code <= this.EndCode && this.Exclusions.every(exclusion !== char);
-    }
-
-    toString() {
-        return `${this.Start}${this.End}${this.Exclusions.join("")}`;
-    }
-}
-
-class Rule {
-    Terminal;
-    Identifier;
-    Replacements = [];
-    constructor(terminal, identifier) {
-        this.Terminal = terminal;
-        this.Identifier = identifier;
-    }
-}
-
-function deepIsEqual(obj1, obj2) {
-    const typeofObj1 = typeof (obj1);
-    const typeofObj2 = typeof (obj2);
-
-    if (typeofObj1 !== typeofObj2) return false;
-
-    switch (typeofObj1) {
-        case "number":
-        case "string":
-        case "boolean":
-            return obj1 === obj2;
-        case "symbol":
-            return obj1.toString() === obj2.toString();
-        case "object":
-            if (obj1 instanceof Set !== obj2 instanceof Set) return false;
-            if ((obj1 == null) !== (obj2 == null)) return false;
-            if (Array.isArray(obj1) !== Array.isArray(obj2)) return false;
-
-            if (obj1 instanceof Set) {
-                return deepIsEqual(Array.from(obj1), Array.from(obj2));
-            }
-
-            if (Array.isArray(obj1)) {
-                if (obj1.length !== obj2.length) return false;
-                for (let i = 0; i < obj1.length; ++i) {
-                    if (!deepIsEqual(obj1[i], obj2[i])) return false;
-                }
-            }
-
-            for (const key in obj1) {
-                if (!(key in obj2)) return false;
-                if (!deepIsEqual(obj1[key], obj2[key])) return false;
-            }
-
-            return true;
-    }
-}
-
-function singletonChar(hexOrChar) {
-    if (hexOrChar.length > 1) {
-        return String.fromCodePoint(parseInt(hexOrChar, 16));
-    }
-
-    return hexOrChar;
-}
-
-const grammar = require('fs').readFileSync("JSON grammar.txt").toString();
+const grammar = require('fs').readFileSync("test grammar 4.txt").toString();
 
 const ruleGroups = {};
 let startVariable;
@@ -172,12 +95,6 @@ for (const key in ruleGroups) {
     }
 }
 
-
-
-Set.prototype.extend = function (enumerable) {
-    for (const item of enumerable) this.add(item);
-}
-
 function first(variable) {
     const result = new Set();
 
@@ -219,29 +136,38 @@ function follow(followSets, startVariable) {
         for (const variable in followSets) {
             for (const replacement of ruleGroups[variable].Replacements) {
                 if (replacement.length >= 2) {
-                    for (let i = 1; i < replacement.length; ++i) {
-                        if (!ruleGroups[replacement[i - 1].Identifier].Terminal) {
-                            const firstBeta = new Set(firstSets[replacement[i].Identifier]);
-                            if (firstBeta.has("")) {
-                                followSets[replacement[i - 1].Identifier].extend(followSets[variable]);
-                                firstBeta.delete("");
+                    for (let i = 0; i < replacement.length - 1; ++i) {
+                        if (ruleGroups[replacement[i].Identifier].Terminal) continue;
+                        let stopped = false;
+                        for (let j = i + 1; j < replacement.length; ++j) {
+                            if (!ruleGroups[replacement[i].Identifier].Terminal) {
+                                const firstBeta = new Set(ruleGroups[replacement[j].Identifier].Terminal ? replacement[j].Identifier : firstSets[replacement[j].Identifier]);
+                                if (firstBeta.has("")) {
+                                    firstBeta.delete("");
+                                    followSets[replacement[i].Identifier].extend(firstBeta);
+                                } else {
+                                    stopped = true;
+                                    followSets[replacement[i].Identifier].extend(firstBeta);
+                                    break;
+                                }
                             }
-                            
-                            followSets[replacement[i - 1].Identifier].extend(firstBeta);
+                        }
+
+                        if (!stopped) {
+                            followSets[replacement[i].Identifier].extend(followSets[variable]);
                         }
                     }
+                }
 
-                    if (!ruleGroups[replacement[replacement.length - 1].Identifier].Terminal) {
-                        followSets[replacement[replacement.length - 1].Identifier].extend(followSets[variable]);
-                    }
+                if (!ruleGroups[replacement[replacement.length - 1].Identifier].Terminal) {
+                    followSets[replacement[replacement.length - 1].Identifier].extend(followSets[variable]);
                 }
             }
         }
 
-    } while (!deepIsEqual(followSets, copy));
+    } while (!deepAreEqual(followSets, copy));
 }
 
-const firstSets = Object.values(ruleGroups).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: first(cur.Identifier) }), {});
-const followSets = Object.values(ruleGroups).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: new Set() }), {});
+const firstSets = Object.values(ruleGroups).filter(x => !x.Terminal).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: first(cur.Identifier) }), {});
+const followSets = Object.values(ruleGroups).filter(x => !x.Terminal).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: new Set() }), {});
 follow(followSets, startVariable);
-console.log(firstSets);
