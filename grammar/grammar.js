@@ -171,3 +171,9 @@ function follow(followSets, startVariable) {
 const firstSets = Object.values(ruleGroups).filter(x => !x.Terminal).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: first(cur.Identifier) }), {});
 const followSets = Object.values(ruleGroups).filter(x => !x.Terminal).reduce((acc, cur) => Object.assign(acc, { [cur.Identifier]: new Set() }), {});
 follow(followSets, startVariable);
+
+const parseTable = {};
+
+for (const variable in ruleGroups) {
+    if (ruleGroups)
+}
